@@ -1,0 +1,23 @@
+[package]
+name = "wasedge_factory"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "^1.36", features = ["rt-multi-thread"]}
+# datafusion = { version = "36" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="799be5e76bd631608b2357dbbe600afc2cebc359" }
+# thiserror = { version = "1.0" }
+log = { version = "0.4" }
+async-trait = { version = "0.1" }
+wasmedge-sdk = { version = "0.13.2"}
+project-root = { version = "0.2.2"}
+
+wasm_udf = { path = "../wasm_udf"}
+
+[dev-dependencies]
+ctor = { version = "0.2"}
+env_logger = { version = "0.11" }

@@ -1,0 +1,15 @@
+[package]
+name = "wasm_function"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+arrow = { version = "51" }
+wasm_udf = { path = "../wasm_udf"}
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"

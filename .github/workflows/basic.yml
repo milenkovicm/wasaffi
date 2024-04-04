@@ -1,0 +1,47 @@
+name: Basic Flow
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "**.md"
+      - "**.yaml"
+  pull_request:
+    branches: [master]
+    paths-ignore:
+      - "**.md"
+      - "**.yaml"
+
+env:
+  CARGO_TERM_COLOR: always
+  # this one speeds up builds, they say
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt
+      # make cargo format to fail first
+      # before bringing other things, and spending time 
+      # compiling 
+      - name: Cargo Format Check
+        run: cargo fmt --all --check --
+        # we use cache if format is correct 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Cargo Compile (with tests)
+        # should be faster than compiling tests again in 
+        # test phase 
+        # run: cargo test --no-run --locked --all-features
+        run: cargo test --no-run --all-features
+      - name: Cargo Run Tests
+        run: cargo test  -- --nocapture --quiet
+

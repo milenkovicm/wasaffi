@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "wasmedge_factory", "wasm_udf"
+]
+
+exclude = ["wasm_function"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"

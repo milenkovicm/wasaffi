@@ -1,0 +1,12 @@
+[package]
+name = "wasm_udf"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+
+arrow = { version = "51" }
+paste = { version = "1.0" }
+wasmedge-bindgen = { version = "0.4.1"}
+wasmedge-bindgen-macro = { version = "0.4.1" }
