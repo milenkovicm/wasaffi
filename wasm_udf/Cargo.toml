@@ -6,7 +6,7 @@ license = { workspace = true }
 
 [dependencies]
 
-arrow = { version = "51" }
+arrow = {  workspace = true }
 paste = { version = "1.0" }
 wasmedge-bindgen = { version = "0.4.1"}
 wasmedge-bindgen-macro = { version = "0.4.1" }

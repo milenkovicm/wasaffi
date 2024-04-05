@@ -8,7 +8,7 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
-arrow = { version = "51" }
+arrow = { workspace = true }
 wasm_udf = { path = "../wasm_udf"}
 
 [dev-dependencies]

@@ -2,7 +2,7 @@ name: Basic Flow
 
 on:
   push:
-    branches: [master]
+    branches: [master, ci_*]
     paths-ignore:
       - "**.md"
       - "**.yaml"
