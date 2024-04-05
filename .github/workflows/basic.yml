@@ -25,23 +25,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: stable
           components: rustfmt
+          targets: wasm32-unknown-unknown
       # make cargo format to fail first
       # before bringing other things, and spending time 
       # compiling 
       - name: Cargo Format Check
         run: cargo fmt --all --check --
-        # we use cache if format is correct 
+      - name: Update Packages (apt-cache cache)
+        run: sudo apt-get update
+      - name: Install Required Libraries (using apt-get)
+        run: sudo apt-get install -y curl
+      - name: Install WasmEdge (using curl)
+        run: curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash
+      # we use cache if format is correct 
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+      - name: Make Compile (Wasm)
+        run: make wasm
       - name: Cargo Compile (with tests)
         # should be faster than compiling tests again in 
         # test phase 
         # run: cargo test --no-run --locked --all-features
         run: cargo test --no-run --all-features
       - name: Cargo Run Tests
-        run: cargo test  -- --nocapture --quiet
+        run: |
+              source $HOME/.wasmedge/env
+              cargo test  -- --nocapture --quiet
 
