@@ -8,8 +8,8 @@ license = { workspace = true }
 
 [dependencies]
 tokio = { version = "^1.36", features = ["rt-multi-thread"]}
-# datafusion = { version = "36" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="799be5e76bd631608b2357dbbe600afc2cebc359" }
+datafusion = { version = "37.0" }
+# datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="799be5e76bd631608b2357dbbe600afc2cebc359" }
 # thiserror = { version = "1.0" }
 log = { version = "0.4" }
 async-trait = { version = "0.1" }
