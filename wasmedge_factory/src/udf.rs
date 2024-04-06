@@ -14,15 +14,17 @@ use wasmedge_sdk::dock::{Param, VmDock};
 
 #[derive(Debug)]
 pub(crate) struct WasmFunctionWrapper {
+    /// name which was used to in `CREATE FUNCTION` statement
     declared_function_name: String,
+    /// wasm method to be called, can be found in `AS` part of the statement
     wasm_method: String,
     argument_schema: SchemaRef,
+    // TODO: function signature should be extracted from `CREATE FUNCTION` statement
     signature: Signature,
     return_type: DataType,
+    /// wasm VM which hosts module
     vm: Arc<VmDock>,
 }
-
-// WASAFFI
 
 impl WasmFunctionWrapper {
     pub(crate) fn new(

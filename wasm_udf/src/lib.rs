@@ -56,9 +56,11 @@ macro_rules! export_udf_function {
             pub fn [<__wasm_udf_$name>](payload: Vec<u8>) -> Result<Vec<u8>,String> {
                 let args_batch = from_ipc(&payload);
                 let result = $name(args_batch.columns());
-                //let batch = pack_array(&vec![result]);
-                //to_ipc(&batch.schema(), batch)
-                result.map(|result| pack_array(&vec![result])).map(|batch| to_ipc(&batch.schema(), batch)).map_err(|e| e.to_string())
+                // let batch = pack_array(&vec![result]);
+                // to_ipc(&batch.schema(), batch)
+                result.map(|result| pack_array(&vec![result]))
+                    .map(|batch| to_ipc(&batch.schema(), batch))
+                    .map_err(|e| e.to_string())
             }
         }
     };
