@@ -45,9 +45,9 @@ fn f1(args: &[ArrayRef]) -> Result<ArrayRef, ArrowError> {
             _ => None,
         })
         .collect::<Float64Array>();
-    
+
     // TODO: do we need arc here?
-    //       only reason to stay to keep api same 
+    //       only reason to stay to keep api same
     //       like datafusion udf's
     Ok(Arc::new(array))
 }

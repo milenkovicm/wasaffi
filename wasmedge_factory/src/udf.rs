@@ -112,3 +112,9 @@ impl ScalarUDFImpl for WasmFunctionWrapper {
         }
     }
 }
+
+impl Drop for WasmFunctionWrapper {
+    fn drop(&mut self) {
+        log::debug!("drop wasm function, name={}", self.name())
+    }
+}

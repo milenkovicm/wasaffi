@@ -1,4 +1,7 @@
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::{Arc, Weak},
+};
 
 use datafusion::{
     arrow::datatypes::DataType,
@@ -8,11 +11,15 @@ use datafusion::{
     logical_expr::{CreateFunction, DefinitionStatement, ScalarUDF},
 };
 use thiserror::Error;
+use tokio::sync::Mutex;
 use wasmedge_sdk::{config::ConfigBuilder, dock::VmDock, Module, VmBuilder};
+use weak_table::WeakValueHashMap;
 
 mod udf;
-#[derive(Default)]
-pub struct WasmFunctionFactory {}
+//#[derive(Default)]
+pub struct WasmFunctionFactory {
+    modules: Arc<Mutex<WeakValueHashMap<String, Weak<VmDock>>>>,
+}
 
 #[async_trait::async_trait]
 impl FunctionFactory for WasmFunctionFactory {
@@ -37,9 +44,7 @@ impl FunctionFactory for WasmFunctionFactory {
             Some(f) => return exec_err!("wasm function incorrect {:?} ", f),
         };
 
-        // we could have have vm and module cached in FunctionFactory
-        // and reuse across the functions if needed
-        let vm = WasmFunctionFactory::wasm_model_load(&module_name)?;
+        let vm = self.wasm_model_cache_or_load(&module_name).await?;
         let f = crate::udf::WasmFunctionWrapper::new(
             vm,
             declared_name,
@@ -52,7 +57,41 @@ impl FunctionFactory for WasmFunctionFactory {
     }
 }
 
+impl Default for WasmFunctionFactory {
+    fn default() -> Self {
+        WasmFunctionFactory {
+            modules: Arc::new(Mutex::new(WeakValueHashMap::new())),
+        }
+    }
+}
+
 impl WasmFunctionFactory {
+    /// returns cached module or
+    /// loads, caches module and returns module
+    /// for given module path
+    async fn wasm_model_cache_or_load(
+        &self,
+        wasm_module_path: &str,
+    ) -> std::result::Result<Arc<VmDock>, WasmFunctionError> {
+        // caching key is bit primitive, but good enough for now
+        let mut modules = self.modules.lock().await;
+        // lets assume creation of new module will not take too long
+        // and lock will be kept for a very short period of time,
+        // good enough for now
+        match modules.get(wasm_module_path) {
+            Some(module) => {
+                log::debug!("return cached VM for wasm_module={}", wasm_module_path);
+                Ok(module.clone())
+            }
+            None => {
+                log::debug!("no cached VM for wasm_module={}", wasm_module_path);
+                let module = Self::wasm_model_load(wasm_module_path)?;
+                modules.insert(wasm_module_path.to_string(), module.clone());
+                Ok(module)
+            }
+        }
+    }
+
     fn wasm_module_function(s: &str) -> Result<(String, String)> {
         match s.split('!').collect::<Vec<&str>>()[..] {
             [module, method] if !module.is_empty() && !method.is_empty() => {
@@ -63,6 +102,7 @@ impl WasmFunctionFactory {
     }
 
     fn wasm_model_load(wasm_module: &str) -> std::result::Result<Arc<VmDock>, WasmFunctionError> {
+        log::debug!("producing new VM for wasm_module={}", wasm_module);
         let file = Path::new(&wasm_module);
         let module = if file.is_absolute() {
             Module::from_file(None, wasm_module)?
@@ -82,6 +122,10 @@ impl WasmFunctionFactory {
             .register_module(None, module)?;
 
         Ok(Arc::new(VmDock::new(vm)))
+    }
+    #[allow(dead_code)]
+    async fn cached_modules(&self) -> usize {
+        self.modules.lock().await.len()
     }
 }
 
@@ -252,6 +296,58 @@ mod test {
         ];
 
         assert_batches_eq!(expected, &result);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn should_create_drop_function() -> datafusion::error::Result<()> {
+        let function_factory = Arc::new(WasmFunctionFactory::default());
+        let ctx = SessionContext::new().with_function_factory(function_factory.clone());
+
+        let sql = r#"
+        CREATE FUNCTION f1(DOUBLE, DOUBLE)
+        RETURNS DOUBLE
+        LANGUAGE WASM
+        AS 'wasm_function/target/wasm32-unknown-unknown/debug/wasm_function.wasm!f1'
+        "#;
+
+        ctx.sql(sql).await?.show().await?;
+
+        let sql = r#"
+        CREATE FUNCTION f2(DOUBLE, DOUBLE)
+        RETURNS DOUBLE
+        LANGUAGE WASM
+        AS 'wasm_function/target/wasm32-unknown-unknown/debug/wasm_function.wasm!f_return_arrow_error'
+        "#;
+
+        ctx.sql(sql).await?.show().await?;
+
+        let result = ctx.sql("select f1(2.0,2.0)").await?.collect().await?;
+        let expected = vec![
+            "+---------------------------+",
+            "| f1(Float64(2),Float64(2)) |",
+            "+---------------------------+",
+            "| 4.0                       |",
+            "+---------------------------+",
+        ];
+
+        assert_batches_eq!(expected, &result);
+
+        // we should have one modules caching
+        assert_eq!(1, function_factory.cached_modules().await);
+
+        let sql = r#"
+        DROP FUNCTION f1
+        "#;
+
+        ctx.sql(sql).await?.show().await?;
+
+        let sql = r#"
+        DROP FUNCTION f2
+        "#;
+
+        ctx.sql(sql).await?.show().await?;
+
         Ok(())
     }
 }
