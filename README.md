@@ -36,8 +36,9 @@ Define a rust function ([wasm_function](wasm_function/)) like:
 // add required bindgen, and required serialization/deserialization
 wasm_udf::export_udf_function!(f1);
 
-// standard datafusion udf ... kind of 
-fn f1(args: &[ArrayRef]) -> Result<ArrayRef,String> {
+/// standard datafusion udf ... kind of 
+/// should return ArrayRef or ArrowError (or any error implementing to_string)
+fn f1(args: &[ArrayRef]) -> Result<ArrayRef,ArrowError> {
     let base = args[0]
         .as_any()
         .downcast_ref::<Float64Array>()

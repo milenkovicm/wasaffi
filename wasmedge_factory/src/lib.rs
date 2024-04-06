@@ -187,6 +187,31 @@ mod test {
     }
 
     #[tokio::test]
+    async fn should_handle_arrow_error() -> datafusion::error::Result<()> {
+        let ctx =
+            SessionContext::new().with_function_factory(Arc::new(WasmFunctionFactory::default()));
+
+        let sql = r#"
+        CREATE FUNCTION f2(DOUBLE, DOUBLE)
+        RETURNS DOUBLE
+        LANGUAGE WASM
+        AS 'wasm_function/target/wasm32-unknown-unknown/debug/wasm_function.wasm!f_return_arrow_error'
+        "#;
+
+        ctx.sql(sql).await?.show().await?;
+
+        let result = ctx.sql("select f2(1.0,1.0)").await?.show().await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            "Execution error: [Wasm Invocation] Divide by zero error",
+            result.err().unwrap().to_string()
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn should_handle_panic() -> datafusion::error::Result<()> {
         let ctx =
             SessionContext::new().with_function_factory(Arc::new(WasmFunctionFactory::default()));

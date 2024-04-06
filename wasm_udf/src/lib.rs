@@ -58,7 +58,7 @@ macro_rules! export_udf_function {
                 let result = $name(args_batch.columns());
                 //let batch = pack_array(&vec![result]);
                 //to_ipc(&batch.schema(), batch)
-                result.map(|result| pack_array(&vec![result])).map(|batch| to_ipc(&batch.schema(), batch))
+                result.map(|result| pack_array(&vec![result])).map(|batch| to_ipc(&batch.schema(), batch)).map_err(|e| e.to_string())
             }
         }
     };

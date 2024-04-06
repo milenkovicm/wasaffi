@@ -1,4 +1,5 @@
 use arrow::array::{Array, ArrayRef, Float64Array};
+use arrow::error::ArrowError;
 use std::sync::Arc;
 use wasm_udf::*;
 
@@ -13,13 +14,16 @@ use wasm_udf::*;
 // expose function f1 as external function
 // add required bindgen, and required serialization/deserialization
 export_udf_function!(f1);
-/// function should return error
+// function should return error
 export_udf_function!(f_return_error);
-/// function should panic
+// function should panic
 export_udf_function!(f_panic);
+// function should return arrow error
+export_udf_function!(f_return_arrow_error);
 
-// standard datafusion udf ... kind of
-fn f1(args: &[ArrayRef]) -> Result<ArrayRef, String> {
+/// standard datafusion udf ... kind of
+/// should return ArrayRef or ArrowError
+fn f1(args: &[ArrayRef]) -> Result<ArrayRef, ArrowError> {
     assert_eq!(2, args.len());
 
     let base = args[0]
@@ -44,9 +48,14 @@ fn f1(args: &[ArrayRef]) -> Result<ArrayRef, String> {
 
     Ok(Arc::new(array))
 }
-
+/// function returns String Error
 fn f_return_error(_args: &[ArrayRef]) -> Result<ArrayRef, String> {
     Err("wasm function returned error".to_string())
+}
+
+/// function returns error
+fn f_return_arrow_error(_args: &[ArrayRef]) -> Result<ArrayRef, ArrowError> {
+    Err(ArrowError::DivideByZero)
 }
 
 fn f_panic(_args: &[ArrayRef]) -> Result<ArrayRef, String> {
