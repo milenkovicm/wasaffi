@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 use datafusion::{
     arrow::{
@@ -10,11 +10,7 @@ use datafusion::{
     logical_expr::{ColumnarValue, ScalarUDFImpl, Signature, Volatility},
 };
 use wasm_udf::{from_ipc, pack_array_with_schema, to_ipc};
-use wasmedge_sdk::{
-    config::ConfigBuilder,
-    dock::{Param, VmDock},
-    Module, VmBuilder,
-};
+use wasmedge_sdk::dock::{Param, VmDock};
 
 #[derive(Debug)]
 pub(crate) struct WasmFunctionWrapper {
@@ -32,35 +28,11 @@ pub(crate) struct WasmFunctionWrapper {
 
 impl WasmFunctionWrapper {
     pub(crate) fn new(
-        wasm_module: String,
+        vm: Arc<VmDock>,
         name: String,
         argument_types: Vec<DataType>,
         return_type: DataType,
     ) -> Result<Self> {
-        // TODO: remove .unwraps when you get chance
-        let file = Path::new(&wasm_module);
-        let module = if file.is_absolute() {
-            Module::from_file(None, &wasm_module).unwrap()
-        } else {
-            let mut project_root = project_root::get_project_root().unwrap();
-            project_root.push(file);
-            Module::from_file(None, &project_root).unwrap()
-        };
-
-        // default configuration will do for now
-        let config = ConfigBuilder::default().build().unwrap();
-
-        let vm = VmBuilder::new()
-            .with_config(config)
-            .build()
-            .unwrap()
-            .register_module(None, module)
-            .unwrap();
-
-        // we could have have vm and module cached in FunctionFactory
-        // and reuse across the functions if needed
-        let vm = Arc::new(VmDock::new(vm));
-
         let fields = argument_types
             .iter()
             .enumerate()

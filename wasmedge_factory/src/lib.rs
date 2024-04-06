@@ -1,12 +1,14 @@
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use datafusion::{
     arrow::datatypes::DataType,
     common::exec_err,
-    error::Result,
+    error::{DataFusionError, Result},
     execution::context::{FunctionFactory, RegisterFunction, SessionState},
     logical_expr::{CreateFunction, DefinitionStatement, ScalarUDF},
 };
+use thiserror::Error;
+use wasmedge_sdk::{config::ConfigBuilder, dock::VmDock, Module, VmBuilder};
 
 mod udf;
 #[derive(Default)]
@@ -29,26 +31,66 @@ impl FunctionFactory for WasmFunctionFactory {
             })
             .unwrap_or_default();
 
-        let (module, method) = match &statement.params.as_ {
-            Some(DefinitionStatement::SingleQuotedDef(path)) => Self::module_function(path)?,
+        let (module_name, method_name) = match &statement.params.as_ {
+            Some(DefinitionStatement::SingleQuotedDef(path)) => Self::wasm_module_function(path)?,
             None => return exec_err!("wasm function not defined "),
             Some(f) => return exec_err!("wasm function incorrect {:?} ", f),
         };
 
-        let f = crate::udf::WasmFunctionWrapper::new(module, method, argument_types, return_type)?;
+        // we could have have vm and module cached in FunctionFactory
+        // and reuse across the functions if needed
+        let vm = WasmFunctionFactory::wasm_model_load(&module_name)?;
+        let f = crate::udf::WasmFunctionWrapper::new(vm, method_name, argument_types, return_type)?;
 
         Ok(RegisterFunction::Scalar(Arc::new(ScalarUDF::from(f))))
     }
 }
 
 impl WasmFunctionFactory {
-    fn module_function(s: &str) -> Result<(String, String)> {
+    fn wasm_module_function(s: &str) -> Result<(String, String)> {
         match s.split('!').collect::<Vec<&str>>()[..] {
             [module, method] if !module.is_empty() && !method.is_empty() => {
                 Ok((module.to_string(), method.to_string()))
             }
             _ => exec_err!("bad module/method format"),
         }
+    }
+
+    fn wasm_model_load(wasm_module: &str) -> std::result::Result<Arc<VmDock>, WasmFunctionError> {
+        let file = Path::new(&wasm_module);
+        let module = if file.is_absolute() {
+            Module::from_file(None, wasm_module)?
+        } else {
+            let mut project_root = project_root::get_project_root()
+                .map_err(|e| WasmFunctionError::Execution(e.to_string()))?;
+            project_root.push(file);
+            Module::from_file(None, &project_root)?
+        };
+
+        // default configuration will do for now
+        let config = ConfigBuilder::default().build()?;
+
+        let vm = VmBuilder::new()
+            .with_config(config)
+            .build()?
+            .register_module(None, module)?;
+
+        Ok(Arc::new(VmDock::new(vm)))
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum WasmFunctionError {
+    #[error("WasmEdge Error: {0}")]
+    WasmEdgeError(#[from] Box<wasmedge_sdk::error::WasmEdgeError>),
+    #[error("Execution Error: {0}")]
+    Execution(String),
+}
+
+impl From<WasmFunctionError> for DataFusionError {
+    fn from(e: WasmFunctionError) -> Self {
+        // will do for now
+        DataFusionError::Execution(e.to_string())
     }
 }
 
@@ -66,11 +108,11 @@ mod test {
 
     #[test]
     fn test_module_function_split() {
-        let (module, method) = WasmFunctionFactory::module_function("module!method").unwrap();
+        let (module, method) = WasmFunctionFactory::wasm_module_function("module!method").unwrap();
         assert_eq!("module", module);
         assert_eq!("method", method);
 
-        assert!(WasmFunctionFactory::module_function("!method").is_err());
+        assert!(WasmFunctionFactory::wasm_module_function("!method").is_err());
     }
     #[tokio::test]
     async fn e2e() -> datafusion::error::Result<()> {
