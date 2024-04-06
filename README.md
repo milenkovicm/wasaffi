@@ -106,8 +106,6 @@ should produce something similar to:
 
 Function is declared in format `wasm_function.wasm!f1`, where `wasm_function.wasm` represents module to load and `f1` a function to call.
 
-At the moment, each function will create its own wasm VM, which may not be the optimal solution (but good enough for purpose of this POC). It should be simple enough to cache wasm module and reuse it across different functions.
-
 ## TODO
 
 - [ ] ~~To be investigated if [WasmEdge Plug-ins](https://wasmedge.org/docs/start/wasmedge/extensions/plugins/) can be used
