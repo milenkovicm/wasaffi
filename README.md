@@ -37,7 +37,7 @@ Define a rust function ([wasm_function](wasm_function/)) like:
 wasm_udf::export_udf_function!(f1);
 
 // standard datafusion udf ... kind of 
-fn f1(args: &[ArrayRef]) -> ArrayRef {
+fn f1(args: &[ArrayRef]) -> Result<ArrayRef,String> {
     let base = args[0]
         .as_any()
         .downcast_ref::<Float64Array>()
@@ -56,7 +56,7 @@ fn f1(args: &[ArrayRef]) -> ArrayRef {
         })
         .collect::<Float64Array>();
 
-    Arc::new(array)
+    Ok(Arc::new(array))
 }
 ```
 
@@ -71,7 +71,7 @@ An artifact should be available at `target/wasm32-unknown-unknown/debug/wasm_fun
 
 `export_udf_function!` macro should add WasmEdge bindings and peace of code which would do Arrow IPC serialization/deserialization. Arrow arrays are effectively copied across rust/wasm boundary.
 
-This code handles happy day scenario, exceptional cases might be covered in following updates.
+This code currently handles happy day scenario, with basic exceptional cases covered.
 
 ## UDF Declaration
 

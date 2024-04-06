@@ -30,7 +30,7 @@ impl FunctionFactory for WasmFunctionFactory {
                     .collect::<Vec<DataType>>()
             })
             .unwrap_or_default();
-
+        let declared_name = statement.name;
         let (module_name, method_name) = match &statement.params.as_ {
             Some(DefinitionStatement::SingleQuotedDef(path)) => Self::wasm_module_function(path)?,
             None => return exec_err!("wasm function not defined "),
@@ -40,7 +40,13 @@ impl FunctionFactory for WasmFunctionFactory {
         // we could have have vm and module cached in FunctionFactory
         // and reuse across the functions if needed
         let vm = WasmFunctionFactory::wasm_model_load(&module_name)?;
-        let f = crate::udf::WasmFunctionWrapper::new(vm, method_name, argument_types, return_type)?;
+        let f = crate::udf::WasmFunctionWrapper::new(
+            vm,
+            declared_name,
+            method_name,
+            argument_types,
+            return_type,
+        )?;
 
         Ok(RegisterFunction::Scalar(Arc::new(ScalarUDF::from(f))))
     }
@@ -115,7 +121,7 @@ mod test {
         assert!(WasmFunctionFactory::wasm_module_function("!method").is_err());
     }
     #[tokio::test]
-    async fn e2e() -> datafusion::error::Result<()> {
+    async fn should_handle_happy_path() -> datafusion::error::Result<()> {
         let ctx =
             SessionContext::new().with_function_factory(Arc::new(WasmFunctionFactory::default()));
 
@@ -156,43 +162,71 @@ mod test {
     }
 
     #[tokio::test]
-    async fn e2e_release() -> datafusion::error::Result<()> {
+    async fn should_handle_error() -> datafusion::error::Result<()> {
         let ctx =
             SessionContext::new().with_function_factory(Arc::new(WasmFunctionFactory::default()));
 
-        let a: ArrayRef = Arc::new(Float64Array::from(vec![2.0, 3.0, 4.0, 5.0]));
-        let b: ArrayRef = Arc::new(Float64Array::from(vec![2.0, 3.0, 4.0, 5.1]));
-        let batch = RecordBatch::try_from_iter(vec![("a", a), ("b", b)])?;
+        let sql = r#"
+        CREATE FUNCTION f2(DOUBLE, DOUBLE)
+        RETURNS DOUBLE
+        LANGUAGE WASM
+        AS 'wasm_function/target/wasm32-unknown-unknown/debug/wasm_function.wasm!f_return_error'
+        "#;
 
-        ctx.register_batch("t", batch)?;
+        ctx.sql(sql).await?.show().await?;
+
+        let result = ctx.sql("select f2(1.0,1.0)").await?.show().await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            "Execution error: [Wasm Invocation] wasm function returned error",
+            result.err().unwrap().to_string()
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn should_handle_panic() -> datafusion::error::Result<()> {
+        let ctx =
+            SessionContext::new().with_function_factory(Arc::new(WasmFunctionFactory::default()));
 
         let sql = r#"
         CREATE FUNCTION f1(DOUBLE, DOUBLE)
         RETURNS DOUBLE
         LANGUAGE WASM
-        AS 'wasm_function.wasm!f1'
+        AS 'wasm_function/target/wasm32-unknown-unknown/debug/wasm_function.wasm!f1'
+        "#;
+        // we register good function to verify that panich
+        // will not put vm to some unexpected state
+        ctx.sql(sql).await?.show().await?;
+
+        let sql = r#"
+        CREATE FUNCTION f3(DOUBLE, DOUBLE)
+        RETURNS DOUBLE
+        LANGUAGE WASM
+        AS 'wasm_function/target/wasm32-unknown-unknown/debug/wasm_function.wasm!f_panic'
         "#;
 
         ctx.sql(sql).await?.show().await?;
 
-        let result = ctx
-            .sql("select a, b, f1(a,b) from t")
-            .await?
-            .collect()
-            .await?;
+        let result = ctx.sql("select f3(1.0,1.0)").await?.show().await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            "Execution error: [Wasm Invocation Panic] unreachable",
+            result.err().unwrap().to_string()
+        );
+        let result = ctx.sql("select f1(1.0,1.0)").await?.collect().await?;
         let expected = vec![
-            "+-----+-----+-------------------+",
-            "| a   | b   | f1(t.a,t.b)       |",
-            "+-----+-----+-------------------+",
-            "| 2.0 | 2.0 | 4.0               |",
-            "| 3.0 | 3.0 | 27.0              |",
-            "| 4.0 | 4.0 | 256.0             |",
-            "| 5.0 | 5.1 | 3670.684197150057 |",
-            "+-----+-----+-------------------+",
+            "+---------------------------+",
+            "| f1(Float64(1),Float64(1)) |",
+            "+---------------------------+",
+            "| 1.0                       |",
+            "+---------------------------+",
         ];
 
         assert_batches_eq!(expected, &result);
-
         Ok(())
     }
 }

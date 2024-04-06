@@ -13,9 +13,13 @@ use wasm_udf::*;
 // expose function f1 as external function
 // add required bindgen, and required serialization/deserialization
 export_udf_function!(f1);
+/// function should return error
+export_udf_function!(f_return_error);
+/// function should panic
+export_udf_function!(f_panic);
 
 // standard datafusion udf ... kind of
-fn f1(args: &[ArrayRef]) -> ArrayRef {
+fn f1(args: &[ArrayRef]) -> Result<ArrayRef, String> {
     assert_eq!(2, args.len());
 
     let base = args[0]
@@ -38,7 +42,15 @@ fn f1(args: &[ArrayRef]) -> ArrayRef {
         })
         .collect::<Float64Array>();
 
-    Arc::new(array)
+    Ok(Arc::new(array))
+}
+
+fn f_return_error(_args: &[ArrayRef]) -> Result<ArrayRef, String> {
+    Err("wasm function returned error".to_string())
+}
+
+fn f_panic(_args: &[ArrayRef]) -> Result<ArrayRef, String> {
+    panic!("wasm function panicked")
 }
 
 #[cfg(test)]

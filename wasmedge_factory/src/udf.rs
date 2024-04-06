@@ -14,10 +14,8 @@ use wasmedge_sdk::dock::{Param, VmDock};
 
 #[derive(Debug)]
 pub(crate) struct WasmFunctionWrapper {
-    name: String,
+    declared_function_name: String,
     wasm_method: String,
-    //wasm_module: String,
-    //argument_types: Vec<DataType>,
     argument_schema: SchemaRef,
     signature: Signature,
     return_type: DataType,
@@ -29,7 +27,8 @@ pub(crate) struct WasmFunctionWrapper {
 impl WasmFunctionWrapper {
     pub(crate) fn new(
         vm: Arc<VmDock>,
-        name: String,
+        declared_function_name: String,
+        wasm_method: String,
         argument_types: Vec<DataType>,
         return_type: DataType,
     ) -> Result<Self> {
@@ -46,8 +45,8 @@ impl WasmFunctionWrapper {
 
         Ok(Self {
             // prefix is not really needed but it looks cool :)
-            wasm_method: format!("__wasm_udf_{}", name),
-            name,
+            wasm_method: format!("__wasm_udf_{}", wasm_method),
+            declared_function_name,
             signature: Signature::exact(argument_types, Volatility::Volatile),
             return_type,
             argument_schema,
@@ -62,7 +61,7 @@ impl ScalarUDFImpl for WasmFunctionWrapper {
     }
 
     fn name(&self) -> &str {
-        &self.name
+        &self.declared_function_name
     }
 
     fn signature(&self) -> &datafusion::logical_expr::Signature {
@@ -86,7 +85,16 @@ impl ScalarUDFImpl for WasmFunctionWrapper {
         let payload = to_ipc(&batch.schema(), batch);
         let params = vec![Param::VecU8(&payload)];
 
-        match self.vm.run_func(&self.wasm_method, params).unwrap() {
+        let call_result = match self.vm.run_func(&self.wasm_method, params) {
+            Ok(result) => result,
+            // if wasm function panics it should get to this error
+            Err(e) => return exec_err!("[Wasm Invocation Panic] {}", e),
+        };
+
+        match call_result {
+            // function returned result
+            // in our case we expect only single result
+            // at position 0
             Ok(mut res) => {
                 // we should add errors to the protocol
                 let response = res.pop().unwrap().downcast::<Vec<u8>>().unwrap();
@@ -95,8 +103,9 @@ impl ScalarUDFImpl for WasmFunctionWrapper {
                 let result = a.column(0);
                 Ok(ColumnarValue::from(result.clone() as ArrayRef))
             }
+            // function returned error
             Err(err) => {
-                exec_err!("wasm call error: {}", err)
+                exec_err!("[Wasm Invocation] {}", err)
             }
         }
     }

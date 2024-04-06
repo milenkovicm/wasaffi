@@ -53,11 +53,12 @@ macro_rules! export_udf_function {
     ($name:ident) => {
         paste::item! {
             #[wasmedge_bindgen_macro::wasmedge_bindgen]
-            pub fn [<__wasm_udf_$name>](payload: Vec<u8>) -> Vec<u8> {
+            pub fn [<__wasm_udf_$name>](payload: Vec<u8>) -> Result<Vec<u8>,String> {
                 let args_batch = from_ipc(&payload);
                 let result = $name(args_batch.columns());
-                let batch = pack_array(&vec![result]);
-                to_ipc(&batch.schema(), batch)
+                //let batch = pack_array(&vec![result]);
+                //to_ipc(&batch.schema(), batch)
+                result.map(|result| pack_array(&vec![result])).map(|batch| to_ipc(&batch.schema(), batch))
             }
         }
     };
