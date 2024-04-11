@@ -16,9 +16,11 @@ use wasmedge_sdk::{config::ConfigBuilder, dock::VmDock, Module, VmBuilder};
 use weak_table::WeakValueHashMap;
 
 mod udf;
-//#[derive(Default)]
+
+type ModuleCache = Arc<Mutex<WeakValueHashMap<String, Weak<VmDock>>>>;
+
 pub struct WasmFunctionFactory {
-    modules: Arc<Mutex<WeakValueHashMap<String, Weak<VmDock>>>>,
+    modules: ModuleCache,
 }
 
 #[async_trait::async_trait]
@@ -123,9 +125,9 @@ impl WasmFunctionFactory {
 
         Ok(Arc::new(VmDock::new(vm)))
     }
-    #[allow(dead_code)]
-    async fn cached_modules(&self) -> usize {
-        self.modules.lock().await.len()
+    #[cfg(test)]
+    fn module_cache(&self) -> ModuleCache {
+        self.modules.clone()
     }
 }
 
@@ -334,7 +336,7 @@ mod test {
         assert_batches_eq!(expected, &result);
 
         // we should have one modules caching
-        assert_eq!(1, function_factory.cached_modules().await);
+        assert_eq!(1, function_factory.module_cache().lock().await.len());
 
         let sql = r#"
         DROP FUNCTION f1
@@ -347,6 +349,21 @@ mod test {
         "#;
 
         ctx.sql(sql).await?.show().await?;
+
+        // we should have none modules cached
+        // weak hashmap should drop VM after last function
+        // has been dropped.
+        // note, weak hash map is lazy to drop
+        assert_eq!(
+            0,
+            function_factory
+                .module_cache()
+                .lock()
+                .await
+                .keys()
+                .collect::<Vec<_>>()
+                .len()
+        );
 
         Ok(())
     }
