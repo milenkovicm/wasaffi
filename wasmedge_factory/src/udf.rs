@@ -17,6 +17,8 @@ pub(crate) struct WasmFunctionWrapper {
     /// name which was used to in `CREATE FUNCTION` statement
     declared_function_name: String,
     /// wasm method to be called, can be found in `AS` part of the statement
+    // it would be much better if we could cache method handle
+    // but that is not currently supported by wasmedge sdk
     wasm_method: String,
     argument_schema: SchemaRef,
     // TODO: function signature should be extracted from `CREATE FUNCTION` statement

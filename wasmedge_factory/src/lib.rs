@@ -20,6 +20,11 @@ mod udf;
 type ModuleCache = Arc<Mutex<WeakValueHashMap<String, Weak<VmDock>>>>;
 
 pub struct WasmFunctionFactory {
+    // note:
+    // https://github.com/WasmEdge/wasmedge-rust-sdk/issues/89
+    // comments do not add up to VM interface, on top of it
+    // UDFs do not modify any state. leaving as it is for now
+    // may revert it later
     modules: ModuleCache,
 }
 

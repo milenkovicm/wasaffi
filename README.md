@@ -1,8 +1,9 @@
 # Datafusion WASM User Defined Functions
 
 Very simplistic datafusion user defined functions written in WASM.
+
 POC has been built on top of [Wasmedge](https://wasmedge.org) library.
-Not terribly performant with lot of coping and serializing data.
+It is not terribly performant, with lot of coping and serializing data.
 
 It has been implemented to demonstrate DataFusion `FunctionFactory` functionality ([arrow-datafusion/pull#9333](https://github.com/apache/arrow-datafusion/pull/9333)) & `WASM UDF` ([arrow-datafusion/pull#9326](https://github.com/apache/arrow-datafusion/issues/9326)).
 
@@ -15,7 +16,7 @@ Other project in `FunctionFactory` series:
 > [!NOTE]
 >
 > - It has not been envisaged as a actively maintained library.
-> - ~~I might give it another show with WasmEdge Plug-ins~~
+>
 
 ## Installation
 
@@ -26,6 +27,8 @@ or using brew:
 ```bash
 brew install wasmedge
 ```
+
+Why [WasmEdge](https://wasmedge.org)? It provided good enough examples to pick up wasm/rust integration.
 
 ## Define Function
 
@@ -61,7 +64,7 @@ fn f1(args: &[ArrayRef]) -> Result<ArrayRef,ArrowError> {
 }
 ```
 
-which will be converted to `wasm` module with:
+which will be compiled to a `wasm` module with:
 
 ```bash
 cd wasm_function
@@ -70,9 +73,9 @@ cargo build
 
 An artifact should be available at `target/wasm32-unknown-unknown/debug/wasm_function.wasm`.
 
-`export_udf_function!` macro should add WasmEdge bindings and peace of code which would do Arrow IPC serialization/deserialization. Arrow arrays are effectively copied across rust/wasm boundary.
+`export_udf_function!` macro should add WasmEdge bindings and peace of code which would do Arrow IPC serialization/deserialization. Arrow arrays are effectively copied across rust/wasm boundary using Arrow Ipc.
 
-This code currently handles happy day scenario, with basic exceptional cases covered.
+This code currently handles happy path scenario, with some exceptional cases covered.
 
 ## UDF Declaration
 
@@ -105,8 +108,3 @@ should produce something similar to:
 ```
 
 Function is declared in format `wasm_function.wasm!f1`, where `wasm_function.wasm` represents module to load and `f1` a function to call.
-
-## TODO
-
-- [ ] ~~To be investigated if [WasmEdge Plug-ins](https://wasmedge.org/docs/start/wasmedge/extensions/plugins/) can be used
-to avoid some data coping~~.
