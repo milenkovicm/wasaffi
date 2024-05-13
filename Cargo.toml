@@ -15,4 +15,4 @@ license = "MIT"
 
 [workspace.dependencies]
 arrow = { version = "51" }
-datafusion = { version = "37" }
+datafusion = { version = "38" }
