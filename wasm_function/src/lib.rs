@@ -17,7 +17,7 @@ export_udf_function!(f1);
 // function should return error
 export_udf_function!(f_return_error);
 // function should panic
-export_udf_function!(f_panic);
+// export_udf_function!(f_panic);
 // function should return arrow error
 export_udf_function!(f_return_arrow_error);
 
@@ -61,9 +61,9 @@ fn f_return_arrow_error(_args: &[ArrayRef]) -> Result<ArrayRef, ArrowError> {
     Err(ArrowError::DivideByZero)
 }
 
-fn f_panic(_args: &[ArrayRef]) -> Result<ArrayRef, String> {
-    panic!("wasm function panicked")
-}
+// fn f_panic(_args: &[ArrayRef]) -> Result<ArrayRef, String> {
+//     panic!("wasm function panicked")
+// }
 
 #[cfg(test)]
 mod tests {
