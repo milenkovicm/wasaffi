@@ -13,7 +13,7 @@ datafusion = {  workspace = true }
 thiserror = { version = "1.0" }
 log = { version = "0.4" }
 async-trait = { version = "0.1" }
-wasmedge-sdk = { version = "0.13.2"}
+wasmedge-sdk = { version = "0.14.0"}
 project-root = { version = "0.2.2"}
 weak-table = { version = "0.3.2"}
 
